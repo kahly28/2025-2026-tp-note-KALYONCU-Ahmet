@@ -1,62 +1,107 @@
-import { useRef, useState } from "react";
-import { Animated, Easing, ScrollView, View } from "react-native";
-import { Button, Card, Divider, Text } from "react-native-paper";
+import { Linking, Platform, ScrollView, View } from "react-native";
+import { Card, Divider, Text } from "react-native-paper";
 //import { type MovieDetailsProps } from "@/components/molecule/movieDetailsOnList";
 //import { type Movie } from "@/types";
 import { Job } from "@/types";
 import { JobDetailsProps } from "../molecule/jobDetailsOnList";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState, AppDispatch } from "@/stores/store";
-import { push, remove } from "@/stores/favouriteSlice";
+import { useFeedbackBubbleContext } from "@/helpers/FeedbackBubbleProvider";
+import { FavouriteToggleButton } from "@/components/molecule/FavouriteToggleButton";
 
 export const JobDetails = ({ route }: JobDetailsProps) => {
   const job: Job = route.params.job;
-  const dispatch = useDispatch<AppDispatch>();
-  const isFavourite = useSelector((state: RootState) =>
-    state.favourite.value.some((item) => item.id === job.id),
-  );
-  const [bubbleMessage, setBubbleMessage] = useState("");
-  const bubbleOpacity = useRef(new Animated.Value(0)).current;
-  const bubbleScale = bubbleOpacity.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.85, 1],
-  });
+  const { showBubble } = useFeedbackBubbleContext();
 
-  const triggerBubble = (message: string) => {
-    bubbleOpacity.stopAnimation();
-    setBubbleMessage(message);
-    bubbleOpacity.setValue(0);
-
-    Animated.sequence([
-      Animated.timing(bubbleOpacity, {
-        toValue: 1,
-        duration: 160,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.delay(1400),
-      Animated.timing(bubbleOpacity, {
-        toValue: 0,
-        duration: 200,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setBubbleMessage("");
-      }
-    });
+  const debugLog = (message: string, payload?: unknown) => {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log(`[JobDetails] ${message}`, payload);
+    }
   };
 
-  const handleToggleFavourite = () => {
-    if (isFavourite) {
-      dispatch(remove(job.id));
-      triggerBubble("Retiré des favoris");
+  const openLink = async (url: string): Promise<boolean> => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      debugLog(`canOpenURL(${url})`, canOpen);
+      if (!canOpen) {
+        return false;
+      }
+
+      debugLog("Opening URL", url);
+      await Linking.openURL(url);
+      return true;
+    } catch (error) {
+      debugLog(`openURL threw for ${url}`, error);
+      return false;
+    }
+  };
+
+  const openWithFallback = async (
+    urls: Array<string>,
+    fallbackMessage: string,
+  ) => {
+    debugLog("Attempting URLs", urls);
+    for (const url of urls) {
+      if (await openLink(url)) {
+        debugLog("URL succeeded", url);
+        return;
+      }
+      debugLog("URL failed", url);
+    }
+
+    debugLog("All URL attempts failed", fallbackMessage);
+    showBubble(fallbackMessage);
+  };
+
+  const handlePhonePress = () => {
+    const sanitizedPhone = job.telephone.replace(/[^\d+]/g, "");
+    debugLog("Sanitized phone", sanitizedPhone);
+    if (sanitizedPhone.length === 0) {
+      showBubble("Numéro indisponible");
       return;
     }
 
-    dispatch(push(job));
-    triggerBubble("Ajouté aux favoris");
+    const phoneUrls =
+      Platform.OS === "ios"
+        ? [`telprompt:${sanitizedPhone}`, `tel:${sanitizedPhone}`]
+        : [`tel:${sanitizedPhone}`];
+
+    void openWithFallback(phoneUrls, "Impossible d'ouvrir l'app téléphone");
+  };
+
+  const handleEmailPress = () => {
+    debugLog("handleEmailPress", job.email);
+    if (!job.email) {
+      showBubble("Email indisponible");
+      return;
+    }
+
+    void openWithFallback(
+      [`mailto:${job.email}`],
+      "Impossible d'ouvrir l'app mail",
+    );
+  };
+
+  const handleAddressPress = () => {
+    const parts = [job.numeroRue, job.rue, job.codePostal ?? "", job.ville]
+      .map((part) => part?.trim())
+      .filter((part): part is string => Boolean(part && part.length > 0));
+
+    debugLog("handleAddressPress parts", parts);
+
+    if (parts.length === 0) {
+      showBubble("Adresse indisponible");
+      return;
+    }
+
+    const encodedAddress = encodeURIComponent(parts.join(" "));
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+    debugLog("handleAddressPress URL", mapsUrl);
+
+    void openWithFallback(
+      [mapsUrl],
+      "Impossible d'ouvrir l'app de cartographie",
+    );
   };
 
   return (
@@ -64,15 +109,23 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 80, gap: 16 }}
       >
-        <Card mode="contained" style={{ borderRadius: 18, overflow: "hidden" }}>
-          <Card.Cover
-            source={{
-              uri:
-                job.entreprisePhoto ||
-                "https://freesvg.org/img/Image-Not-Found.png",
+        <Card mode="contained" style={{ borderRadius: 18 }}>
+          <View
+            style={{
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              overflow: "hidden",
             }}
-            resizeMode="cover"
-          />
+          >
+            <Card.Cover
+              source={{
+                uri:
+                  job.entreprisePhoto ||
+                  "https://freesvg.org/img/Image-Not-Found.png",
+              }}
+              resizeMode="cover"
+            />
+          </View>
           <Card.Content style={{ gap: 16 }}>
             <View style={{ gap: 4 }}>
               <Text variant="headlineLarge">{job.poste}</Text>
@@ -119,12 +172,7 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
           <Card.Actions
             style={{ justifyContent: "flex-end", paddingBottom: 16 }}
           >
-            <Button
-              mode={isFavourite ? "contained" : "outlined"}
-              onPress={handleToggleFavourite}
-            >
-              {isFavourite ? "Retirer des favoris" : "Ajouter aux favoris"}
-            </Button>
+            <FavouriteToggleButton job={job} />
           </Card.Actions>
         </Card>
 
@@ -135,53 +183,48 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
               <Text variant="labelMedium" style={{ color: "#6b7280" }}>
                 Téléphone
               </Text>
-              <Text variant="bodyLarge">{job.telephone}</Text>
+              <Text
+                variant="bodyLarge"
+                style={{ color: "#2563eb", textDecorationLine: "underline" }}
+                onPress={handlePhonePress}
+              >
+                {job.telephone}
+              </Text>
             </View>
             <View style={{ gap: 4 }}>
               <Text variant="labelMedium" style={{ color: "#6b7280" }}>
                 Email
               </Text>
-              <Text variant="bodyLarge">{job.email}</Text>
+              <Text
+                variant="bodyLarge"
+                style={{ color: "#2563eb", textDecorationLine: "underline" }}
+                onPress={handleEmailPress}
+              >
+                {job.email}
+              </Text>
             </View>
             <View style={{ gap: 4 }}>
               <Text variant="labelMedium" style={{ color: "#6b7280" }}>
                 Adresse
               </Text>
-              <Text variant="bodyLarge">
+              <Text
+                variant="bodyLarge"
+                style={{ color: "#2563eb", textDecorationLine: "underline" }}
+                onPress={handleAddressPress}
+              >
                 {job.numeroRue} {job.rue}
               </Text>
-              <Text variant="bodyLarge">
+              <Text
+                variant="bodyLarge"
+                style={{ color: "#2563eb", textDecorationLine: "underline" }}
+                onPress={handleAddressPress}
+              >
                 {job.codePostal ?? ""} {job.ville}
               </Text>
             </View>
           </Card.Content>
         </Card>
       </ScrollView>
-      {bubbleMessage !== "" && (
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            bottom: 32,
-            alignSelf: "center",
-            backgroundColor: "rgba(17, 24, 39, 0.92)",
-            paddingVertical: 8,
-            paddingHorizontal: 18,
-            borderRadius: 9999,
-            opacity: bubbleOpacity,
-            transform: [{ scale: bubbleScale }],
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-            elevation: 8,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>
-            {bubbleMessage}
-          </Text>
-        </Animated.View>
-      )}
     </>
   );
 };

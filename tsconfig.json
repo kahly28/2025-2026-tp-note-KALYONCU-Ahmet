@@ -5,6 +5,7 @@
     "noImplicitAny": true,
     "strictPropertyInitialization": true,
     "jsx": "react-native",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }

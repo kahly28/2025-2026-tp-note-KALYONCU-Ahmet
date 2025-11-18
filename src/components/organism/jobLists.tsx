@@ -1,12 +1,10 @@
-import { useRef, useState } from "react";
-import { Animated, Easing, View, Text } from "react-native";
+import { View, Text } from "react-native";
 import { Job } from "@/types";
 import { Button, Card, Divider } from "react-native-paper";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "@/App";
-import { RootState } from "@/stores/store";
-import { useDispatch, useSelector } from "react-redux";
-import { push, remove } from "@/stores/favouriteSlice";
+import { useFavouriteManager } from "@/helpers/useFavouriteManager";
+import { useFeedbackBubbleContext } from "@/helpers/FeedbackBubbleProvider";
 
 type JobListProps = {
   jobs: Array<Job>;
@@ -16,70 +14,35 @@ const JobList = ({ jobs }: JobListProps) => {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Details">>();
 
-  const favouriteJobs = useSelector(
-    (state: RootState) => state.favourite.value,
-  );
-
-  const isInFavourite = (id: string): boolean => {
-    return favouriteJobs.some((job) => job.id === id);
-  };
-
-  const dispatch = useDispatch();
-  const [bubbleMessage, setBubbleMessage] = useState("");
-  const bubbleOpacity = useRef(new Animated.Value(0)).current;
-  const bubbleScale = bubbleOpacity.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.85, 1],
-  });
-
-  const triggerBubble = (message: string) => {
-    bubbleOpacity.stopAnimation();
-    setBubbleMessage(message);
-    bubbleOpacity.setValue(0);
-
-    Animated.sequence([
-      Animated.timing(bubbleOpacity, {
-        toValue: 1,
-        duration: 160,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.delay(1400),
-      Animated.timing(bubbleOpacity, {
-        toValue: 0,
-        duration: 200,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setBubbleMessage("");
-      }
-    });
-  };
-
-  const handleAddFavourite = (jobToAdd: Job) => {
-    dispatch(push(jobToAdd));
-    triggerBubble("Ajouté aux favoris");
-  };
-
-  const handleRemoveFavourite = (jobId: string) => {
-    dispatch(remove(jobId));
-    triggerBubble("Retiré des favoris");
-  };
-
+  const { isFavourite, addFavourite, removeFavourite } = useFavouriteManager();
+  const { showBubble } = useFeedbackBubbleContext();
   const dedupedJobs = Array.from(new Set(jobs));
 
   return (
-    <View style={{ position: "relative", paddingBottom: 64 }}>
+    <View style={{ paddingBottom: 64 }}>
       {dedupedJobs.map((job) => {
+        const jobIsFavourite = isFavourite(job.id);
+
+        const handleToggleFavourite = () => {
+          const result = jobIsFavourite
+            ? removeFavourite(job.id)
+            : addFavourite(job);
+
+          if (result === "added") {
+            showBubble("Ajouté aux favoris");
+          }
+
+          if (result === "removed") {
+            showBubble("Retiré des favoris");
+          }
+        };
+
         return (
           <Card
             key={`${job.entreprise}-${job.id}`}
             style={{
               margin: 10,
               borderRadius: 10,
-              overflow: "hidden",
               flexDirection: "column",
             }}
             onPress={() =>
@@ -88,14 +51,22 @@ const JobList = ({ jobs }: JobListProps) => {
               })
             }
           >
-            <Card.Cover
-              source={{
-                uri:
-                  job.entreprisePhoto ||
-                  "https://freesvg.org/img/Image-Not-Found.png",
+            <View
+              style={{
+                borderTopLeftRadius: 10,
+                borderTopRightRadius: 10,
+                overflow: "hidden",
               }}
-              resizeMode="cover"
-            />
+            >
+              <Card.Cover
+                source={{
+                  uri:
+                    job.entreprisePhoto ||
+                    "https://freesvg.org/img/Image-Not-Found.png",
+                }}
+                resizeMode="cover"
+              />
+            </View>
             <Card.Content style={{ gap: 12 }}>
               <View style={{ gap: 4 }}>
                 <Text style={{ fontSize: 18, fontWeight: "600" }}>
@@ -140,44 +111,44 @@ const JobList = ({ jobs }: JobListProps) => {
             </Card.Content>
 
             <Card.Actions style={{ justifyContent: "flex-end", padding: 12 }}>
-              {!isInFavourite(job.id) ? (
-                <Button onPressOut={() => handleAddFavourite(job)}>
+              <Button
+                mode={jobIsFavourite ? "contained" : "outlined"}
+                onPress={handleToggleFavourite}
+              >
+                {jobIsFavourite ? "Retirer des favoris" : "Ajouter aux favoris"}
+              </Button>
+
+              {/*
+              {!isFavourite(job.id) ? (
+                <Button
+                  onPressOut={() => {
+                    const result = addFavourite(job);
+
+                    if (result === "added") {
+                      showBubble("Ajouté aux favoris");
+                    }
+                  }}
+                >
                   Ajouter au favoris
                 </Button>
               ) : (
-                <Button onPressOut={() => handleRemoveFavourite(job.id)}>
+                <Button
+                  onPressOut={() => {
+                    const result = removeFavourite(job.id);
+
+                    if (result === "removed") {
+                      showBubble("Retiré des favoris");
+                    }
+                  }}
+                >
                   Supprimer des favoris
                 </Button>
               )}
+              */}
             </Card.Actions>
           </Card>
         );
       })}
-      {bubbleMessage !== "" && (
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            bottom: 24,
-            alignSelf: "center",
-            backgroundColor: "rgba(17, 24, 39, 0.92)",
-            paddingVertical: 8,
-            paddingHorizontal: 18,
-            borderRadius: 9999,
-            opacity: bubbleOpacity,
-            transform: [{ scale: bubbleScale }],
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-            elevation: 8,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>
-            {bubbleMessage}
-          </Text>
-        </Animated.View>
-      )}
     </View>
   );
 };
