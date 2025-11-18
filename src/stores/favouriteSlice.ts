@@ -1,8 +1,8 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { Movie } from "../types";
+import { Job } from "@/types";
 
 interface FavouriteState {
-  value: Array<Movie>;
+  value: Array<Job>;
 }
 
 const initialState: FavouriteState = {
@@ -13,11 +13,11 @@ export const favouriteSlice = createSlice({
   name: "counter",
   initialState,
   reducers: {
-    push: (state, movie: PayloadAction<Movie>) => {
-      state.value.push(movie.payload);
+    push: (state, job: PayloadAction<Job>) => {
+      state.value.push(job.payload);
     },
-    remove: (state, id: PayloadAction<number>) => {
-      state.value = state.value.filter((m) => m.id != id.payload);
+    remove: (state, id: PayloadAction<string>) => {
+      state.value = state.value.filter((job) => job.id !== id.payload);
     },
   },
 });
@@ -27,7 +27,7 @@ export default favouriteSlice.reducer;
 
 export const selectIsInFavourite = (
   state: { favourite: FavouriteState },
-  id: number,
+  id: string,
 ) => {
-  return state.favourite.value.some((movie) => movie.id === id);
+  return state.favourite.value.some((job) => job.id === id);
 };

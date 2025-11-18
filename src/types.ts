@@ -1,21 +1,15 @@
-export type Movie = {
-  adult: boolean;
-  backdrop_path: string;
-  genre_ids: Array<number>;
-  id: number;
-  original_language: string;
-  original_title: string;
-  overview: string;
-  popularity: number;
-  poster_path: string;
-  release_date: string;
-  title: string;
-  video: boolean;
-  vote_average: number;
-  vote_count: number;
-};
-
-export type Page = {
-  page: number;
-  results: Array<Movie>;
+export type Job = {
+  id: string;
+  email: string;
+  poste: string;
+  entreprise: string;
+  ville: string;
+  codePostal: string | null;
+  rue: string;
+  numeroRue: string;
+  entreprisePhoto: string;
+  description: string;
+  date: string;
+  telephone: string;
+  salaireAnnuel: number;
 };

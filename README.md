@@ -1,2 +1,4 @@
-# 2025-2026-tp-note-KALYONCU-Ahmet
-TP noté
+- doc de react-native-paper https://callstack.github.io/react-native-paper/docs/
+- avant d'envoyer le code :
+  - `npx prettier -w .`
+  - `npx eslint`

@@ -1,17 +1,17 @@
 import { useSelector } from "react-redux";
 import { RootState } from "@/stores/store";
 import { ScrollView, View } from "react-native";
-import MovieList from "@/components/organism/movieList";
+import JobList from "@/components/organism/jobLists";
 
 const Favorite = () => {
-  const favouriteMovies = useSelector(
+  const favouriteJobs = useSelector(
     (state: RootState) => state.favourite.value,
   );
 
   return (
     <ScrollView>
       <View style={{ flex: 1, alignItems: "center" }}>
-        <MovieList movies={favouriteMovies} />
+        <JobList jobs={favouriteJobs} />
       </View>
     </ScrollView>
   );
