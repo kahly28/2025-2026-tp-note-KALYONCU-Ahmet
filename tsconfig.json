@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictPropertyInitialization": true,
+    "jsx": "react-native",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
