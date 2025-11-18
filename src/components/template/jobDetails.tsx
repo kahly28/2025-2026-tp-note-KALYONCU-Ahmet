@@ -1,36 +1,26 @@
-import { Linking, Platform, ScrollView, View } from "react-native";
-import { Card, Divider, Text } from "react-native-paper";
-//import { type MovieDetailsProps } from "@/components/molecule/movieDetailsOnList";
-//import { type Movie } from "@/types";
+import { Platform, ScrollView, View, Linking } from "react-native";
+import { Button, Card, Divider, Text } from "react-native-paper";
 import { Job } from "@/types";
 import { JobDetailsProps } from "../molecule/jobDetailsOnList";
 import { useFeedbackBubbleContext } from "@/helpers/FeedbackBubbleProvider";
-import { FavouriteToggleButton } from "@/components/molecule/FavouriteToggleButton";
+import { useFavouriteManager } from "@/helpers/useFavouriteManager";
 
 export const JobDetails = ({ route }: JobDetailsProps) => {
   const job: Job = route.params.job;
+  const { isFavourite, toggleFavourite } = useFavouriteManager();
+  const jobIsFavourite = isFavourite(job.id);
   const { showBubble } = useFeedbackBubbleContext();
-
-  const debugLog = (message: string, payload?: unknown) => {
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.log(`[JobDetails] ${message}`, payload);
-    }
-  };
 
   const openLink = async (url: string): Promise<boolean> => {
     try {
       const canOpen = await Linking.canOpenURL(url);
-      debugLog(`canOpenURL(${url})`, canOpen);
       if (!canOpen) {
         return false;
       }
 
-      debugLog("Opening URL", url);
       await Linking.openURL(url);
       return true;
-    } catch (error) {
-      debugLog(`openURL threw for ${url}`, error);
+    } catch {
       return false;
     }
   };
@@ -39,37 +29,34 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
     urls: Array<string>,
     fallbackMessage: string,
   ) => {
-    debugLog("Attempting URLs", urls);
     for (const url of urls) {
       if (await openLink(url)) {
-        debugLog("URL succeeded", url);
         return;
       }
-      debugLog("URL failed", url);
     }
 
-    debugLog("All URL attempts failed", fallbackMessage);
     showBubble(fallbackMessage);
   };
 
   const handlePhonePress = () => {
     const sanitizedPhone = job.telephone.replace(/[^\d+]/g, "");
-    debugLog("Sanitized phone", sanitizedPhone);
     if (sanitizedPhone.length === 0) {
       showBubble("Numéro indisponible");
       return;
     }
 
-    const phoneUrls =
-      Platform.OS === "ios"
-        ? [`telprompt:${sanitizedPhone}`, `tel:${sanitizedPhone}`]
-        : [`tel:${sanitizedPhone}`];
+    let phoneUrls: Array<string>;
+
+    if (Platform.OS === "ios") {
+      phoneUrls = [`tel:${sanitizedPhone}`];
+    } else {
+      phoneUrls = [`tel:${sanitizedPhone}`];
+    }
 
     void openWithFallback(phoneUrls, "Impossible d'ouvrir l'app téléphone");
   };
 
   const handleEmailPress = () => {
-    debugLog("handleEmailPress", job.email);
     if (!job.email) {
       showBubble("Email indisponible");
       return;
@@ -86,8 +73,6 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
       .map((part) => part?.trim())
       .filter((part): part is string => Boolean(part && part.length > 0));
 
-    debugLog("handleAddressPress parts", parts);
-
     if (parts.length === 0) {
       showBubble("Adresse indisponible");
       return;
@@ -96,12 +81,22 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
     const encodedAddress = encodeURIComponent(parts.join(" "));
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
-    debugLog("handleAddressPress URL", mapsUrl);
-
     void openWithFallback(
       [mapsUrl],
       "Impossible d'ouvrir l'app de cartographie",
     );
+  };
+
+  const handleToggleFavourite = () => {
+    const result = toggleFavourite(job);
+
+    if (result === "added") {
+      showBubble("Ajouté aux favoris");
+    }
+
+    if (result === "removed") {
+      showBubble("Retiré des favoris");
+    }
   };
 
   return (
@@ -172,7 +167,12 @@ export const JobDetails = ({ route }: JobDetailsProps) => {
           <Card.Actions
             style={{ justifyContent: "flex-end", paddingBottom: 16 }}
           >
-            <FavouriteToggleButton job={job} />
+            <Button
+              mode={jobIsFavourite ? "contained" : "outlined"}
+              onPress={handleToggleFavourite}
+            >
+              {jobIsFavourite ? "Retirer des favoris" : "Ajouter aux favoris"}
+            </Button>
           </Card.Actions>
         </Card>
 
